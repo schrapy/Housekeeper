@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Housekeeper</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Housekeeper">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <script>
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js');
+      });
+    }
+  </script>
+</head>
+<body>
+  <header>
+    <h1>🏠 Housekeeper</h1>
+    <nav>
+      <button class="tab-btn" data-tab="today">Today</button>
+      <button class="tab-btn" data-tab="tasks">All Tasks</button>
+      <button class="tab-btn" data-tab="members">Members</button>
+      <button class="tab-btn" data-tab="templates">Deep Clean Templates</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="today" class="tab active">
+      <div class="toolbar">
+        <button id="refreshToday">↻ Refresh</button>
+        <button id="addQuickTask">＋ Quick Task</button>
+      </div>
+      <div id="todayList" class="list"></div>
+    </section>
+
+    <section id="tasks" class="tab">
+      <div class="toolbar">
+        <button id="addTaskBtn">＋ New Task</button>
+        <input id="taskSearch" placeholder="Search task title…" />
+      </div>
+      <div id="taskList" class="list"></div>
+    </section>
+
+    <section id="members" class="tab">
+      <div class="toolbar">
+        <button id="addMemberBtn">＋ Add Member</button>
+      </div>
+      <div id="memberList" class="list"></div>
+    </section>
+
+    <section id="templates" class="tab">
+      <p>Import deep-clean task sets by room. You can edit after importing.</p>
+      <div id="templateList" class="list"></div>
+    </section>
+
+    <section id="settings" class="tab">
+      <h2>Data</h2>
+      <div class="settings-group">
+        <button id="exportDataBtn">Export JSON</button>
+        <label class="file-label">
+          Import JSON
+          <input type="file" id="importDataInput" accept="application/json" />
+        </label>
+      </div>
+      <h2>About</h2>
+      <p><strong>Housekeeper</strong> is a local-first PWA. Add it to your iPad Home Screen from Safari for the best experience (Share → Add to Home Screen).</p>
+    </section>
+  </main>
+
+  <!-- Task Modal -->
+  <dialog id="taskModal">
+    <form method="dialog" id="taskForm">
+      <h3 id="taskModalTitle">New Task</h3>
+      <label>Title <input id="taskTitle" required></label>
+      <label>Room/Area <input id="taskRoom"></label>
+      <label>Notes <textarea id="taskNotes" rows="3"></textarea></label>
+
+      <label>Assign to
+        <select id="taskAssignee"></select>
+      </label>
+
+      <fieldset class="cadence">
+        <legend>Cadence</legend>
+        <label>
+          <select id="cadenceType">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly (day of month)</option>
+            <option value="seasonal">Seasonal (quarterly)</option>
+            <option value="once">One-time</option>
+          </select>
+        </label>
+        <div id="cadenceControls">
+          <!-- weekly -->
+          <div data-cadence="weekly" class="cadence-box hidden">
+            <div class="weekday-picker">
+              <label><input type="checkbox" value="0">Sun</label>
+              <label><input type="checkbox" value="1">Mon</label>
+              <label><input type="checkbox" value="2">Tue</label>
+              <label><input type="checkbox" value="3">Wed</label>
+              <label><input type="checkbox" value="4">Thu</label>
+              <label><input type="checkbox" value="5">Fri</label>
+              <label><input type="checkbox" value="6">Sat</label>
+            </div>
+          </div>
+          <!-- monthly -->
+          <div data-cadence="monthly" class="cadence-box hidden">
+            <label>Day of month (1–28/29/30/31)
+              <input id="monthlyDay" type="number" min="1" max="31" value="1">
+            </label>
+          </div>
+          <!-- seasonal -->
+          <div data-cadence="seasonal" class="cadence-box hidden">
+            <label>Months (choose)
+              <div class="month-picker">
+                <!-- Jan..Dec -->
+              </div>
+              <small>Tip: For quarterly tasks pick Mar, Jun, Sep, Dec.</small>
+            </label>
+          </div>
+          <!-- once -->
+          <div data-cadence="once" class="cadence-box hidden">
+            <label>Due date <input type="date" id="onceDate"></label>
+          </div>
+        </div>
+      </fieldset>
+
+      <label>Next due <input type="date" id="taskNextDue"></label>
+
+      <menu>
+        <button value="cancel">Cancel</button>
+        <button id="deleteTaskBtn" class="danger hidden" value="delete">Delete</button>
+        <button id="saveTaskBtn" value="default">Save</button>
+      </menu>
+      <input type="hidden" id="taskId">
+    </form>
+  </dialog>
+
+  <!-- Member Modal -->
+  <dialog id="memberModal">
+    <form method="dialog" id="memberForm">
+      <h3 id="memberModalTitle">New Member</h3>
+      <label>Name <input id="memberName" required></label>
+      <menu>
+        <button value="cancel">Cancel</button>
+        <button id="deleteMemberBtn" class="danger hidden" value="delete">Delete</button>
+        <button id="saveMemberBtn" value="default">Save</button>
+      </menu>
+      <input type="hidden" id="memberId">
+    </form>
+  </dialog>
+
+  <template id="taskItemTemplate">
+    <div class="item task">
+      <div class="left">
+        <input type="checkbox" class="doneBox">
+      </div>
+      <div class="mid">
+        <div class="title"></div>
+        <div class="meta"></div>
+      </div>
+      <div class="right">
+        <button class="editBtn">Edit</button>
+      </div>
+    </div>
+  </template>
+
+  <template id="memberItemTemplate">
+    <div class="item member">
+      <div class="mid">
+        <div class="title"></div>
+      </div>
+      <div class="right">
+        <button class="editBtn">Edit</button>
+      </div>
+    </div>
+  </template>
+
+  <template id="templateCardTemplate">
+    <div class="card">
+      <h4 class="title"></h4>
+      <ul class="task-bullets"></ul>
+      <button class="importBtn">Import Tasks</button>
+    </div>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
